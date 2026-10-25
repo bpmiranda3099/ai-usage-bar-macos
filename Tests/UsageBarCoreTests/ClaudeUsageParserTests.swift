@@ -16,7 +16,7 @@ struct ClaudeUsageParserTests {
     """
 
     @Test func parsesSessionWeekAndPerModelLines() throws {
-        let result = try #require(ClaudeCodeUsageFetcher.parseUsage(sample, now: now))
+        let result = try #require(ClaudeUsageParser.parseUsage(sample, now: now))
         #expect(result.fiveHourPercent == 95)
         #expect(result.weeklyPercent == 83)
         #expect(result.fiveHourReset == iso("2026-10-25T04:30:00Z"))
@@ -30,7 +30,7 @@ struct ClaudeUsageParserTests {
         Current session: 5% used · resets Oct 25 at 12:30pm (Asia/Manila)
         Current week (all models): 17% used · resets Oct 29 at 10am (Asia/Manila)
         """
-        let result = try #require(ClaudeCodeUsageFetcher.parseUsage(output, now: now))
+        let result = try #require(ClaudeUsageParser.parseUsage(output, now: now))
         #expect(result.extraWeekly.isEmpty)
     }
 
@@ -39,19 +39,19 @@ struct ClaudeUsageParserTests {
         Current session: 5% used · resets Oct 24 at 1am (Asia/Manila)
         Current week (all models): 17% used · resets Oct 29 at 10am (Asia/Manila)
         """
-        let result = try #require(ClaudeCodeUsageFetcher.parseUsage(output, now: now))
+        let result = try #require(ClaudeUsageParser.parseUsage(output, now: now))
         // Oct 24 01:00 Manila = Oct 23 17:00Z, already past, so +1 day.
         #expect(result.fiveHourReset == iso("2026-10-24T17:00:00Z"))
     }
 
     @Test func missingWeekLineReturnsNil() {
         let output = "Current session: 5% used · resets Oct 25 at 12:30pm (Asia/Manila)"
-        #expect(ClaudeCodeUsageFetcher.parseUsage(output, now: now) == nil)
+        #expect(ClaudeUsageParser.parseUsage(output, now: now) == nil)
     }
 
     @Test func garbageReturnsNil() {
-        #expect(ClaudeCodeUsageFetcher.parseUsage("", now: now) == nil)
-        #expect(ClaudeCodeUsageFetcher.parseUsage("Current session: lots\nCurrent week: some", now: now) == nil)
+        #expect(ClaudeUsageParser.parseUsage("", now: now) == nil)
+        #expect(ClaudeUsageParser.parseUsage("Current session: lots\nCurrent week: some", now: now) == nil)
     }
 
     @Test func modelListKeepsRealModelsAndDropsSelectors() {
@@ -59,10 +59,10 @@ struct ClaudeUsageParserTests {
         Current model: `Sonnet 5.5`
         Usage: /model <name>. Available: sonnet, opus, haiku, fable, best, sonnet[1m], opus[1m], fable[1m], opusplan, default, or a full model ID.
         """
-        #expect(ClaudeCodeUsageFetcher.parseModels(output) == ["Sonnet", "Opus", "Haiku", "Fable"])
+        #expect(ClaudeUsageParser.parseModels(output) == ["Sonnet", "Opus", "Haiku", "Fable"])
     }
 
     @Test func modelListWithoutAvailableLineIsEmpty() {
-        #expect(ClaudeCodeUsageFetcher.parseModels("nothing useful here").isEmpty)
+        #expect(ClaudeUsageParser.parseModels("nothing useful here").isEmpty)
     }
 }

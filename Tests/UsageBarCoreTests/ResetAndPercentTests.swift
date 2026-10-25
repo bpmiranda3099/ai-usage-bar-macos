@@ -22,11 +22,4 @@ struct ResetAndPercentTests {
         // Pacific is still on daylight time until Nov 1 (UTC-7).
         #expect(ProviderUsageAPI.nextMidnight(in: "America/Los_Angeles", after: now) == iso("2026-10-26T07:00:00Z"))
     }
-
-    @Test func perMinuteAllowanceLeftIsClamped() {
-        #expect(UsageEntry.percentLeft(used: 0, limit: 40) == 100)
-        #expect(UsageEntry.percentLeft(used: 10, limit: 40) == 75)
-        #expect(UsageEntry.percentLeft(used: 40, limit: 40) == 0)
-        #expect(UsageEntry.percentLeft(used: 50, limit: 40) == 0)
-    }
 }

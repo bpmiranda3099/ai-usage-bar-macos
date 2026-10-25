@@ -121,10 +121,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         panel.setFrameOrigin(NSPoint(x: originX, y: originY))
         panel.makeKeyAndOrderFront(nil)
-        store.refreshRateMeters()
+        store.refreshLiveMeters()
         rateMeterTimer?.invalidate()
         rateMeterTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.store.refreshRateMeters() }
+            Task { @MainActor in self?.store.refreshLiveMeters() }
         }
         NSApp.activate(ignoringOtherApps: true)
 

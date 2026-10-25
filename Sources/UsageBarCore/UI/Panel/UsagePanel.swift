@@ -32,7 +32,7 @@ public final class UsagePanel: NSPanel {
         // hosting view resize the window on its own and shift the top edge.
         hostingView.sizingOptions = []
         hostingView.wantsLayer = true
-        hostingView.layer?.cornerRadius = ContentView.cornerRadius
+        hostingView.layer?.cornerRadius = Layout.cornerRadius
         hostingView.layer?.masksToBounds = true
         hostingView.autoresizingMask = [.width, .height]
 

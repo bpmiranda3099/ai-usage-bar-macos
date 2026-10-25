@@ -1,6 +1,6 @@
 import Foundation
 
-/// Reads Claude's own usage numbers straight from `claude -p "/usage"` instead
+/// Parses Claude Code's own usage numbers from `claude -p "/usage"` instead
 /// of relying on agy's proxied "Claude and GPT models" figures, which lag
 /// badly behind (observed stuck at 100% while Claude Code itself reported far
 /// less). Output looks like:
@@ -9,7 +9,7 @@ import Foundation
 ///   Current week (Fable): 0% used · resets Sep 20 at 4pm (Asia/Manila)
 /// The per-model "Current week (<name>)" lines only appear on plans that
 /// include them (e.g. Max, Team Premium), so they are optional.
-enum ClaudeCodeUsageFetcher {
+enum ClaudeUsageParser {
     struct Result {
         let fiveHourPercent: Int
         let fiveHourReset: Date
@@ -28,11 +28,6 @@ enum ClaudeCodeUsageFetcher {
         pattern: #"(\d{1,3})%\s+used\s*(?:\([^)]*\))?\s*·\s*resets\s+([A-Za-z]{3}\s+\d{1,2})\s+at\s+(\d{1,2}(?::\d{2})?\s*[ap]m)\s*\(([^)]+)\)"#,
         options: [.caseInsensitive]
     )
-
-    static func fetch() -> Result? {
-        guard let output = Tool.claude.run(["-p", "/usage"]) else { return nil }
-        return parseUsage(output)
-    }
 
     /// `now` decides which year the year-less dates in the output belong to.
     static func parseUsage(_ output: String, now: Date = Date()) -> Result? {
@@ -105,15 +100,10 @@ enum ClaudeCodeUsageFetcher {
         return (percent, date)
     }
 
-    /// Model aliases Claude Code accepts, read from `claude -p "/model"`, e.g.
+    /// Model aliases from `claude -p "/model"`, e.g.
     ///   Available: sonnet, opus, haiku, fable, best, sonnet[1m], opusplan, default, or a full model ID.
-    /// Context-window variants ("[1m]") and mode selectors that aren't models
-    /// are dropped; the rest is capitalized for display. Local command, no model call.
-    static func fetchModels() -> [String] {
-        guard let output = Tool.claude.run(["-p", "/model"]) else { return [] }
-        return parseModels(output)
-    }
-
+    /// Context-window variants ("[1m]") and mode selectors that aren't models are dropped;
+    /// the rest is capitalized for display.
     static func parseModels(_ output: String) -> [String] {
         guard let range = output.range(of: "Available:") else { return [] }
         let selectorsThatAreNotModels: Set<String> = ["best", "default", "opusplan"]
