@@ -23,13 +23,6 @@ struct ResetAndPercentTests {
         #expect(ProviderUsageAPI.nextMidnight(in: "America/Los_Angeles", after: now) == iso("2026-10-26T07:00:00Z"))
     }
 
-    @Test func fractionsBecomeClampedPercents() {
-        #expect(ProviderUsageAPI.percent(0) == 0)
-        #expect(ProviderUsageAPI.percent(0.5) == 50)
-        #expect(ProviderUsageAPI.percent(1.5) == 100)
-        #expect(ProviderUsageAPI.percent(-1) == 0)
-    }
-
     @Test func perMinuteAllowanceLeftIsClamped() {
         #expect(UsageEntry.percentLeft(used: 0, limit: 40) == 100)
         #expect(UsageEntry.percentLeft(used: 10, limit: 40) == 75)

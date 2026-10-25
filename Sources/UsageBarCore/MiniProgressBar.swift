@@ -13,7 +13,7 @@ struct MiniProgressBar: View {
                     .fill(Color.secondary.opacity(0.25))
                 Capsule()
                     .fill(tint)
-                    .frame(width: geo.size.width * CGFloat(max(0, min(100, percent))) / 100)
+                    .frame(width: geo.size.width * CGFloat(Percent.clamped(percent)) / 100)
             }
         }
         .frame(width: Self.width, height: 5)

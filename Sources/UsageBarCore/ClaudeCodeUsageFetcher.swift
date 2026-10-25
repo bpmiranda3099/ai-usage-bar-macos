@@ -30,7 +30,7 @@ enum ClaudeCodeUsageFetcher {
     )
 
     static func fetch() -> Result? {
-        guard let output = runClaude() else { return nil }
+        guard let output = Tool.claude.run(["-p", "/usage"]) else { return nil }
         return parseUsage(output)
     }
 
@@ -110,7 +110,7 @@ enum ClaudeCodeUsageFetcher {
     /// Context-window variants ("[1m]") and mode selectors that aren't models
     /// are dropped; the rest is capitalized for display. Local command, no model call.
     static func fetchModels() -> [String] {
-        guard let output = runClaude(arguments: ["-p", "/model"]) else { return [] }
+        guard let output = Tool.claude.run(["-p", "/model"]) else { return [] }
         return parseModels(output)
     }
 
@@ -127,18 +127,5 @@ enum ClaudeCodeUsageFetcher {
             if !names.contains(name) { names.append(name) }
         }
         return names
-    }
-
-    private static func runClaude(arguments: [String] = ["-p", "/usage"]) -> String? {
-        let candidatePaths = [
-            "/opt/homebrew/bin/claude",
-            "/usr/local/bin/claude",
-            "\(NSHomeDirectory())/.local/bin/claude",
-        ]
-        guard let claudePath = candidatePaths.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
-            return nil
-        }
-
-        return SubprocessRunner.run(executablePath: claudePath, arguments: arguments)
     }
 }

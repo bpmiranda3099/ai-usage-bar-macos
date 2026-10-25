@@ -1,5 +1,4 @@
 import Foundation
-import SQLite3
 
 /// Usage for OpenCode's connected providers. Everything is read at runtime,
 /// nothing is hardcoded per model or provider:
@@ -15,12 +14,6 @@ enum OpenCodeUsageFetcher {
     /// OpenCode on this Mac against them.
     static let perMinuteLimits: [String: Int] = ["nvidia": 40]
     private static let rateWindow: TimeInterval = 60
-
-    private final class PathCache: @unchecked Sendable {
-        let lock = NSLock()
-        var databasePath: String?
-    }
-    private static let pathCache = PathCache()
 
     struct Quota {
         let label: String?
@@ -48,16 +41,15 @@ enum OpenCodeUsageFetcher {
     }
 
     static func fetch() -> [ProviderUsage] {
-        guard let opencode = executable(["/opt/homebrew/bin/opencode", "/usr/local/bin/opencode", "\(NSHomeDirectory())/.opencode/bin/opencode", "\(NSHomeDirectory())/.local/bin/opencode"]),
-              let connected = connectedModels(opencode: opencode), !connected.isEmpty else { return [] }
+        guard let connected = connectedModels(), !connected.isEmpty else { return [] }
 
-        let catalog = providerCatalog(opencode: opencode, connected: connected)
+        let catalog = providerCatalog(connected: connected)
         guard !catalog.isEmpty else { return [] }
 
-        let todayCounts = requestCounts(opencode: opencode, days: 0)
-        let weekCounts = requestCounts(opencode: opencode, days: 7)
-        let history = providerHistory(opencode: opencode)
-        let apiQuotas = ProviderUsageAPI.fetch(connected: connected, databasePath: databasePath(opencode: opencode))
+        let todayCounts = requestCounts(days: 0)
+        let weekCounts = requestCounts(days: 7)
+        let history = providerHistory()
+        let apiQuotas = ProviderUsageAPI.fetch(connected: connected, databasePath: OpenCodePaths.database)
 
         return catalog.keys.sorted { catalog[$0]!.name.localizedCaseInsensitiveCompare(catalog[$1]!.name) == .orderedAscending }.map { id in
             let provider = catalog[id]!
@@ -84,8 +76,8 @@ enum OpenCodeUsageFetcher {
 
     /// provider id -> model ids, from `opencode models` ("provider/model" per line;
     /// model ids may themselves contain slashes).
-    private static func connectedModels(opencode: String) -> [String: Set<String>]? {
-        guard let output = SubprocessRunner.run(executablePath: opencode, arguments: ["models"]) else { return nil }
+    private static func connectedModels() -> [String: Set<String>]? {
+        guard let output = Tool.opencode.run(["models"]) else { return nil }
         var result: [String: Set<String>] = [:]
         for line in output.split(separator: "\n") {
             let text = line.trimmingCharacters(in: .whitespaces)
@@ -106,8 +98,8 @@ enum OpenCodeUsageFetcher {
 
     /// Every connected provider with its models; models the catalog lists at zero
     /// input and output cost are free (a missing cost is unknown, not free).
-    private static func providerCatalog(opencode: String, connected: [String: Set<String>]) -> [String: CatalogProvider] {
-        guard let data = FileManager.default.contents(atPath: catalogPath(opencode: opencode)),
+    private static func providerCatalog(connected: [String: Set<String>]) -> [String: CatalogProvider] {
+        guard let data = FileManager.default.contents(atPath: OpenCodePaths.modelCatalog),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
 
         var result: [String: CatalogProvider] = [:]
@@ -138,23 +130,11 @@ enum OpenCodeUsageFetcher {
         return result
     }
 
-    private static func catalogPath(opencode: String) -> String {
-        let fallback = "\(NSHomeDirectory())/.cache/opencode/models.json"
-        guard let output = SubprocessRunner.run(executablePath: opencode, arguments: ["debug", "paths"]) else { return fallback }
-        for line in output.split(separator: "\n") {
-            let parts = line.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
-            if parts.count == 2, parts[0] == "cache" {
-                return parts[1].trimmingCharacters(in: .whitespaces) + "/models.json"
-            }
-        }
-        return fallback
-    }
-
     // MARK: Usage
 
     /// provider id -> model id -> request (step) count for the last `days` days (0 = today).
-    private static func requestCounts(opencode: String, days: Int) -> [String: [String: Int]] {
-        guard let output = SubprocessRunner.run(executablePath: opencode, arguments: ["stats", "--days", String(days), "--models", "--json"]),
+    private static func requestCounts(days: Int) -> [String: [String: Int]] {
+        guard let output = Tool.opencode.run(["stats", "--days", String(days), "--models", "--json"]),
               let data = output.data(using: .utf8),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let models = root["models"] as? [[String: Any]] else { return [:] }
@@ -172,69 +152,31 @@ enum OpenCodeUsageFetcher {
 
     /// All-time assistant request count and last activity per provider, read-only
     /// from OpenCode's local database (only provider id and timestamps are selected).
-    private static func providerHistory(opencode: String) -> [String: (count: Int, lastUsed: Date)] {
-        guard let sqlite = executable(["/usr/bin/sqlite3", "/opt/homebrew/bin/sqlite3"]),
-              let dbPath = databasePath(opencode: opencode),
-              FileManager.default.fileExists(atPath: dbPath) else { return [:] }
-
-        let query = "select json_extract(data,'$.providerID'), count(*), max(time_created) from message where json_extract(data,'$.role')='assistant' group by 1;"
-        guard let output = SubprocessRunner.run(executablePath: sqlite, arguments: ["-readonly", "-separator", "|", dbPath, query]) else { return [:] }
+    private static func providerHistory() -> [String: (count: Int, lastUsed: Date)] {
+        guard let path = OpenCodePaths.database,
+              let rows = SQLiteReader(path: path).query("""
+                  select json_extract(data,'$.providerID'), count(*), max(time_created)
+                  from message where json_extract(data,'$.role') = 'assistant' group by 1
+                  """) else { return [:] }
 
         var result: [String: (count: Int, lastUsed: Date)] = [:]
-        for line in output.split(separator: "\n") {
-            let cols = line.split(separator: "|").map(String.init)
-            guard cols.count == 3, let count = Int(cols[1]), let millis = Double(cols[2]) else { continue }
-            result[cols[0]] = (count, Date(timeIntervalSince1970: millis / 1000))
+        for row in rows {
+            guard let provider = row[0].text, let count = row[1].int, let millis = row[2].int else { continue }
+            result[provider] = (Int(count), Date(timeIntervalSince1970: Double(millis) / 1000))
         }
         return result
     }
 
     /// Assistant requests for one provider in the current clock minute, plus the next
-    /// minute boundary, from OpenCode's local database (read-only, parameterized).
-    /// Cheap enough to call every few seconds.
+    /// minute boundary, from OpenCode's local database. Cheap enough to call every few seconds.
     static func requestsInLastMinute(providerID: String) -> (count: Int, resetAt: Date?)? {
-        pathCache.lock.lock()
-        let path = pathCache.databasePath
-        pathCache.lock.unlock()
-        guard let path else { return nil }
-
-        var db: OpaquePointer?
-        guard sqlite3_open_v2(path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
-            sqlite3_close(db)
-            return nil
-        }
-        defer { sqlite3_close(db) }
-
-        var statement: OpaquePointer?
-        let sql = "select count(*) from message where time_created >= ?1 and json_extract(data,'$.role') = 'assistant' and json_extract(data,'$.providerID') = ?2"
-        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return nil }
-        defer { sqlite3_finalize(statement) }
+        guard let path = OpenCodePaths.database else { return nil }
 
         let minuteStart = (Date().timeIntervalSince1970 / rateWindow).rounded(.down) * rateWindow
-        let cutoffMillis = Int64(minuteStart * 1000)
-        sqlite3_bind_int64(statement, 1, cutoffMillis)
-        sqlite3_bind_text(statement, 2, providerID, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
-        guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
-        return (Int(sqlite3_column_int64(statement, 0)), Date(timeIntervalSince1970: minuteStart + rateWindow))
-    }
-
-    private static func databasePath(opencode: String) -> String? {
-        if let output = SubprocessRunner.run(executablePath: opencode, arguments: ["debug", "paths"]) {
-            for line in output.split(separator: "\n") {
-                let parts = line.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
-                if parts.count == 2, parts[0] == "db" {
-                    let path = parts[1].trimmingCharacters(in: .whitespaces)
-                    pathCache.lock.lock()
-                    pathCache.databasePath = path
-                    pathCache.lock.unlock()
-                    return path
-                }
-            }
-        }
-        return nil
-    }
-
-    private static func executable(_ candidates: [String]) -> String? {
-        candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
+        guard let rows = SQLiteReader(path: path).query(
+            "select count(*) from message where time_created >= ?1 and json_extract(data,'$.role') = 'assistant' and json_extract(data,'$.providerID') = ?2",
+            [.int(Int64(minuteStart * 1000)), .text(providerID)]
+        ), let count = rows.first?[0].int else { return nil }
+        return (Int(count), Date(timeIntervalSince1970: minuteStart + rateWindow))
     }
 }

@@ -1,5 +1,4 @@
 import Foundation
-import SQLite3
 
 /// Reads real usage/limit data straight from providers that expose it, using the
 /// API key OpenCode already stores. Keys are read in-process for the duration of
@@ -63,7 +62,7 @@ enum ProviderUsageAPI {
               let remaining = (daily["remaining"] as? NSNumber)?.doubleValue else { return nil }
 
         // The daily count follows the UTC day (see `usage_daily` in the same response).
-        return OpenCodeUsageFetcher.Quota(label: "1d", percentLeft: percent(remaining / limit), note: "Free-model requests per day", resetAt: nextMidnight(in: "UTC"))
+        return OpenCodeUsageFetcher.Quota(label: "1d", percentLeft: Percent.fromFraction(remaining / limit), note: "Free-model requests per day", resetAt: nextMidnight(in: "UTC"))
     }
 
     // MARK: Ollama Cloud
@@ -82,7 +81,7 @@ enum ProviderUsageAPI {
 
         return OpenCodeUsageFetcher.Quota(
             label: "mo",
-            percentLeft: percent(balance / allowance),
+            percentLeft: Percent.fromFraction(balance / allowance),
             note: String(format: "Included credits: $%.2f of $%.2f left this billing period", balance, allowance),
             resetAt: until
         )
@@ -117,7 +116,7 @@ enum ProviderUsageAPI {
         let left = max(0, cloudflareFreeNeuronsPerDay - used)
         return OpenCodeUsageFetcher.Quota(
             label: "1d",
-            percentLeft: percent(left / cloudflareFreeNeuronsPerDay),
+            percentLeft: Percent.fromFraction(left / cloudflareFreeNeuronsPerDay),
             note: "\(Int(used)) of \(Int(cloudflareFreeNeuronsPerDay)) free neurons used today (UTC)",
             resetAt: nextMidnight(in: "UTC")
         )
@@ -159,7 +158,7 @@ enum ProviderUsageAPI {
            let limit = Double(response.value(forHTTPHeaderField: "x-ratelimit-limit-requests") ?? ""), limit > 0,
            let remaining = Double(response.value(forHTTPHeaderField: "x-ratelimit-remaining-requests") ?? "") {
             let resetAt = parseDuration(response.value(forHTTPHeaderField: "x-ratelimit-reset-requests")).map { Date().addingTimeInterval($0) }
-            quota = OpenCodeUsageFetcher.Quota(label: "1d", percentLeft: percent(remaining / limit), note: "Daily request limit for \(model)", resetAt: resetAt)
+            quota = OpenCodeUsageFetcher.Quota(label: "1d", percentLeft: Percent.fromFraction(remaining / limit), note: "Daily request limit for \(model)", resetAt: resetAt)
         }
         groqCache.quota = quota
         groqCache.fetchedAt = Date()
@@ -196,9 +195,6 @@ enum ProviderUsageAPI {
         return found ? total : nil
     }
 
-    static func percent(_ fraction: Double) -> Int {
-        max(0, min(100, Int((fraction * 100).rounded())))
-    }
 
     /// Synchronous HTTPS request with a timeout. The key is only placed in the
     /// Authorization header of requests to the fixed provider URLs above.
@@ -236,21 +232,11 @@ enum ProviderUsageAPI {
     /// Reads one credential record (API key plus metadata) from OpenCode's credential
     /// table: read-only, parameterized query, newest row for the provider.
     private static func credential(for providerID: String, databasePath: String) -> [String: Any]? {
-        var db: OpaquePointer?
-        guard sqlite3_open_v2(databasePath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
-            sqlite3_close(db)
-            return nil
-        }
-        defer { sqlite3_close(db) }
-
-        var statement: OpaquePointer?
-        let sql = "select value from credential where integration_id = ?1 order by time_updated desc limit 1"
-        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return nil }
-        defer { sqlite3_finalize(statement) }
-
-        sqlite3_bind_text(statement, 1, providerID, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
-        guard sqlite3_step(statement) == SQLITE_ROW, let raw = sqlite3_column_text(statement, 0),
-              let json = try? JSONSerialization.jsonObject(with: Data(String(cString: raw).utf8)) as? [String: Any],
+        guard let rows = SQLiteReader(path: databasePath).query(
+            "select value from credential where integration_id = ?1 order by time_updated desc limit 1",
+            [.text(providerID)]
+        ), let raw = rows.first?[0].text,
+              let json = try? JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any],
               let key = json["key"] as? String, !key.isEmpty else { return nil }
         return json
     }
