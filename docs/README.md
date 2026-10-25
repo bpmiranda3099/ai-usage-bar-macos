@@ -2,9 +2,7 @@
 
 A macOS menu bar app that shows remaining usage limits for Antigravity, Claude Code and OpenCode.
 
-## Usage
-
-Click the menu bar icon to open the panel. Hover a row label to see the models it covers. Click a section header to collapse it. Data refreshes every 5 minutes. A section is hidden if its tool is missing or fails.
+## Sections
 
 | Section | Tool | Shows |
 |---|---|---|
@@ -14,7 +12,7 @@ Click the menu bar icon to open the panel. Hover a row label to see the models i
 
 ### OpenCode providers
 
-Only free models are listed. Providers with a readable limit get a meter. All others share one "Other providers" row.
+Free models only. Providers without a readable limit share one "Other providers" row.
 
 | Provider | Meter | Source |
 |---|---|---|
@@ -44,7 +42,7 @@ swift run -c release AIAgentsUsageBar
 
 ## Run at login
 
-`deploy.sh` builds the app, copies it to `~/Library/Application Support/AIAgentsUsageBar` and restarts a LaunchAgent. Create the agent first at `~/Library/LaunchAgents/com.bpmiranda3099.aiagentsusagebar.plist`, replacing `YOU` with your user name, or change the label in `deploy.sh`.
+`deploy.sh` installs the app to `~/Library/Application Support/AIAgentsUsageBar` and restarts the LaunchAgent below. Save the plist as `~/Library/LaunchAgents/com.bpmiranda3099.aiagentsusagebar.plist` and replace `YOU` with your user name.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>

@@ -1,7 +1,5 @@
 # Architecture
 
-A macOS menu bar app that shows Antigravity, Claude Code and OpenCode usage as meters.
-
 ## Layout
 
 ```
@@ -23,14 +21,13 @@ deploy.sh                  Build and install as a LaunchAgent
 
 ## How data flows
 
-1. `UsageStore` asks every provider in `ProviderRegistry.all` for its sections, all at once,
-   and keeps them in registry order.
-2. A provider runs its tool or API, parses the result into rows and meters, and returns
-   `[UsageSection]`. If it has nothing to show it returns `[]`; it never throws.
-3. `ContentView` loops over the sections and renders each with `ProviderSectionView`.
-   Nothing in the UI knows about a specific provider.
+1. `UsageStore` fetches every provider in `ProviderRegistry.all` concurrently and keeps
+   registry order.
+2. A provider runs its tool or API and returns `[UsageSection]`, or `[]` when it has nothing
+   to show. It does not throw.
+3. `ContentView` renders each section with `ProviderSectionView`.
 4. Rows with a `liveMeter` closure (the NVIDIA per-minute meter) are recomputed every few
-   seconds while the panel is open, from local data only.
+   seconds while the panel is open, from local data.
 
 ## Domain model
 
@@ -63,8 +60,6 @@ OpenCode providers get meters from `ProviderUsageAPI` (direct provider APIs) or
 ## Conventions
 
 - Time-dependent code takes a `now:` parameter instead of reading the clock.
-- External tools run through `Tool` (absolute paths, fixed arguments, no shell).
-- Network calls go through `HTTPClient` only; SQLite reads through `SQLiteReader` only.
 - Text from providers is shown with `Text(verbatim:)`.
 
 ## Handling keys and untrusted input
@@ -84,7 +79,6 @@ OpenCode providers get meters from `ProviderUsageAPI` (direct provider APIs) or
 
 ## Tests
 
-`swift test` runs the suites in `Tests/UsageBarCoreTests`: parsers, section building, the
-store, the HTTP client rules, the subprocess runner, and the SQLite reader. Network and
-subprocess behavior is tested with stubs and temp files; nothing in the suite talks to the
-real services. The panel itself is checked by hand with `./deploy.sh`.
+`swift test` runs `Tests/UsageBarCoreTests`. Network and subprocess behavior is tested with
+stubs and temp files, so the suite does not call real services. The panel is checked manually
+with `./deploy.sh`.
