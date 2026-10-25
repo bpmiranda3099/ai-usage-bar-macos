@@ -31,7 +31,16 @@ Google and NVIDIA usage only counts requests made through OpenCode on this Mac.
 - Xcode 26 or a Swift 6.2 toolchain
 - One or more of `agy`, `claude`, `opencode`, `gcloud`, installed and signed in
 
-## Build and run
+## Install
+
+```sh
+brew install bpmiranda3099/tap/ai-usage-bar
+brew services start ai-usage-bar
+```
+
+`brew services start` launches the app and restarts it at login. The formula builds from source, so it needs Xcode 26.
+
+## Build from source
 
 ```sh
 git clone https://github.com/bpmiranda3099/ai-usage-bar-macos.git
@@ -40,7 +49,7 @@ swift build -c release
 swift run -c release AIAgentsUsageBar
 ```
 
-## Run at login
+## Run at login (source build)
 
 `deploy.sh` installs the app to `~/Library/Application Support/AIAgentsUsageBar` and restarts the LaunchAgent below. Save the plist as `~/Library/LaunchAgents/com.bpmiranda3099.aiagentsusagebar.plist` and replace `YOU` with your user name.
 
