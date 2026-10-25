@@ -1,5 +1,4 @@
 import Foundation
-import SQLite3
 
 /// One combined meter for Google AI Studio's free tier.
 ///  - Limits: read live from your Google project (Service Usage API, per model,
@@ -59,7 +58,7 @@ enum GoogleFreeTier {
         }
         guard !lines.isEmpty else { return nil }
 
-        let percentLeft = totalLimit > 0 ? max(0, min(100, Int(((1 - totalUsed / totalLimit) * 100).rounded()))) : 100
+        let percentLeft = totalLimit > 0 ? Percent.remaining(used: totalUsed, limit: totalLimit) : 100
         let header = "Google free tier, per model (limits from your project; usage counted from OpenCode on this Mac, resets midnight Pacific)"
         return OpenCodeUsageFetcher.Quota(label: "1d", percentLeft: percentLeft, note: ([header] + lines).joined(separator: "\n"), resetAt: ProviderUsageAPI.nextMidnight(in: "America/Los_Angeles"))
     }
@@ -82,9 +81,7 @@ enum GoogleFreeTier {
             return limits
         }
 
-        guard let gcloud = ["/opt/homebrew/bin/gcloud", "/usr/local/bin/gcloud", "\(NSHomeDirectory())/google-cloud-sdk/bin/gcloud"]
-                .first(where: { FileManager.default.isExecutableFile(atPath: $0) }),
-              let token = SubprocessRunner.run(executablePath: gcloud, arguments: ["auth", "print-access-token"])?
+        guard let token = Tool.gcloud.run(["auth", "print-access-token"])?
                 .trimmingCharacters(in: .whitespacesAndNewlines), !token.isEmpty,
               let url = URL(string: "https://serviceusage.googleapis.com/v1beta1/projects/\(projectID)/services/generativelanguage.googleapis.com/consumerQuotaMetrics?view=FULL&pageSize=200"),
               let data = ProviderUsageAPI.get(url, bearer: token, extraHeaders: ["x-goog-user-project": projectID]),
@@ -124,23 +121,14 @@ enum GoogleFreeTier {
         calendar.timeZone = TimeZone(identifier: "America/Los_Angeles") ?? .current
         let cutoffMillis = Int64(calendar.startOfDay(for: Date()).timeIntervalSince1970 * 1000)
 
-        var db: OpaquePointer?
-        guard sqlite3_open_v2(databasePath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
-            sqlite3_close(db)
-            return [:]
-        }
-        defer { sqlite3_close(db) }
-
-        var statement: OpaquePointer?
-        let sql = "select json_extract(data,'$.modelID'), count(*) from message where time_created >= ?1 and json_extract(data,'$.role') = 'assistant' and json_extract(data,'$.providerID') = 'google' group by 1"
-        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return [:] }
-        defer { sqlite3_finalize(statement) }
-        sqlite3_bind_int64(statement, 1, cutoffMillis)
+        guard let rows = SQLiteReader(path: databasePath).query(
+            "select json_extract(data,'$.modelID'), count(*) from message where time_created >= ?1 and json_extract(data,'$.role') = 'assistant' and json_extract(data,'$.providerID') = 'google' group by 1",
+            [.int(cutoffMillis)]
+        ) else { return [:] }
 
         var result: [String: Int] = [:]
-        while sqlite3_step(statement) == SQLITE_ROW {
-            guard let raw = sqlite3_column_text(statement, 0) else { continue }
-            result[String(cString: raw)] = Int(sqlite3_column_int64(statement, 1))
+        for row in rows {
+            if let model = row[0].text, let count = row[1].int { result[model] = Int(count) }
         }
         return result
     }

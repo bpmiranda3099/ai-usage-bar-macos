@@ -38,7 +38,7 @@ struct UsageEntry: Identifiable {
 
     /// Percent of a per-minute allowance left after `used` requests in the last minute.
     static func percentLeft(used: Int, limit: Int) -> Int {
-        max(0, min(100, 100 - Int((Double(used) / Double(limit) * 100).rounded())))
+        Percent.remaining(used: Double(used), limit: Double(limit))
     }
 
     /// Header-only entry for the OpenCode accordion (title and tint, no stats).
@@ -80,8 +80,8 @@ enum UsageFetcher {
     /// first launch. Bounded to exactly these two lookups, not unbounded
     /// fan-out, so it stays cheap on CPU/RAM even under load.
     static func fetch() async -> [UsageEntry] {
-        async let agyOutputTask = Task.detached(priority: .userInitiated) { runAgy() }.value
-        async let modelsTask = Task.detached(priority: .userInitiated) { runAgy(arguments: ["models"]) }.value
+        async let agyOutputTask = Task.detached(priority: .userInitiated) { Tool.agy.run(["--prompt", "/usage"]) }.value
+        async let modelsTask = Task.detached(priority: .userInitiated) { Tool.agy.run(["models"]) }.value
         async let openCodeTask = Task.detached(priority: .userInitiated) { OpenCodeUsageFetcher.fetch() }.value
         async let claudeCodeTask = Task.detached(priority: .userInitiated) { ClaudeCodeUsageFetcher.fetch() }.value
 
@@ -322,18 +322,5 @@ enum UsageFetcher {
             if let key { result[key, default: []].append(name) }
         }
         return result
-    }
-
-    private static func runAgy(arguments: [String] = ["--prompt", "/usage"]) -> String? {
-        let candidatePaths = [
-            "\(NSHomeDirectory())/.local/bin/agy",
-            "/opt/homebrew/bin/agy",
-            "/usr/local/bin/agy",
-        ]
-        guard let agyPath = candidatePaths.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
-            return nil
-        }
-
-        return SubprocessRunner.run(executablePath: agyPath, arguments: arguments)
     }
 }
