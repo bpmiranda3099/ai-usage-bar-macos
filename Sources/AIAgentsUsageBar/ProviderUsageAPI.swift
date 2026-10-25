@@ -63,7 +63,7 @@ enum ProviderUsageAPI {
               let remaining = (daily["remaining"] as? NSNumber)?.doubleValue else { return nil }
 
         // The daily count follows the UTC day (see `usage_daily` in the same response).
-        return OpenCodeUsageFetcher.Quota(label: "1d", percentLeft: percent(remaining / limit), value: nil, note: "Free-model requests per day", resetAt: nextMidnight(in: "UTC"))
+        return OpenCodeUsageFetcher.Quota(label: "1d", percentLeft: percent(remaining / limit), note: "Free-model requests per day", resetAt: nextMidnight(in: "UTC"))
     }
 
     // MARK: Ollama Cloud
@@ -83,7 +83,6 @@ enum ProviderUsageAPI {
         return OpenCodeUsageFetcher.Quota(
             label: "mo",
             percentLeft: percent(balance / allowance),
-            value: nil,
             note: String(format: "Included credits: $%.2f of $%.2f left this billing period", balance, allowance),
             resetAt: until
         )
@@ -119,7 +118,6 @@ enum ProviderUsageAPI {
         return OpenCodeUsageFetcher.Quota(
             label: "1d",
             percentLeft: percent(left / cloudflareFreeNeuronsPerDay),
-            value: nil,
             note: "\(Int(used)) of \(Int(cloudflareFreeNeuronsPerDay)) free neurons used today (UTC)",
             resetAt: nextMidnight(in: "UTC")
         )
@@ -161,7 +159,7 @@ enum ProviderUsageAPI {
            let limit = Double(response.value(forHTTPHeaderField: "x-ratelimit-limit-requests") ?? ""), limit > 0,
            let remaining = Double(response.value(forHTTPHeaderField: "x-ratelimit-remaining-requests") ?? "") {
             let resetAt = parseDuration(response.value(forHTTPHeaderField: "x-ratelimit-reset-requests")).map { Date().addingTimeInterval($0) }
-            quota = OpenCodeUsageFetcher.Quota(label: "1d", percentLeft: percent(remaining / limit), value: nil, note: "Daily request limit for \(model)", resetAt: resetAt)
+            quota = OpenCodeUsageFetcher.Quota(label: "1d", percentLeft: percent(remaining / limit), note: "Daily request limit for \(model)", resetAt: resetAt)
         }
         groqCache.quota = quota
         groqCache.fetchedAt = Date()

@@ -203,7 +203,6 @@ enum UsageFetcher {
                 : provider.modelLabels
             var header: [String] = []
             if let note = provider.quota?.note { header.append(note) }
-            if let value = provider.quota?.value { header.append("Spent: \(value)") }
             return header + names
         }
 
@@ -272,24 +271,11 @@ enum UsageFetcher {
 
     /// One-line status for a provider without a meter, used in the tooltip.
     private static func summary(of provider: OpenCodeUsageFetcher.ProviderUsage) -> String {
-        if let value = provider.quota?.value {
-            return collapsingRepeatedWords([provider.quota?.label, value].compactMap { $0 }.joined(separator: " "))
-        }
         if provider.requestsWeek > 0 { return "\(provider.requestsToday) today, \(provider.requestsWeek) in 7d" }
         if provider.totalRequests > 0, let lastUsed = provider.lastUsed {
             return "\(provider.totalRequests) total, last \(lastUsedFormatter.string(from: lastUsed))"
         }
         return "never used"
-    }
-
-    /// "Monthly Monthly spend USD 0.00" -> "Monthly spend USD 0.00" (the plugin prints
-    /// the window name and the row name back to back).
-    private static func collapsingRepeatedWords(_ text: String) -> String {
-        var words: [Substring] = []
-        for word in text.split(separator: " ") where words.last?.lowercased() != word.lowercased() {
-            words.append(word)
-        }
-        return words.joined(separator: " ")
     }
 
     /// Abbreviates a quota window name ("Monthly") to fit the narrow label column.

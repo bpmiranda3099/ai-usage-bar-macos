@@ -61,7 +61,7 @@ enum GoogleFreeTier {
 
         let percentLeft = totalLimit > 0 ? max(0, min(100, Int(((1 - totalUsed / totalLimit) * 100).rounded()))) : 100
         let header = "Google free tier, per model (limits from your project; usage counted from OpenCode on this Mac, resets midnight Pacific)"
-        return OpenCodeUsageFetcher.Quota(label: "1d", percentLeft: percentLeft, value: nil, note: ([header] + lines).joined(separator: "\n"), resetAt: ProviderUsageAPI.nextMidnight(in: "America/Los_Angeles"))
+        return OpenCodeUsageFetcher.Quota(label: "1d", percentLeft: percentLeft, note: ([header] + lines).joined(separator: "\n"), resetAt: ProviderUsageAPI.nextMidnight(in: "America/Los_Angeles"))
     }
 
     // MARK: Limits
