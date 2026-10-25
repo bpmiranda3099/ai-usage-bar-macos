@@ -1,0 +1,7 @@
+.build/
+.swiftpm/
+.DS_Store
+# Stale build output and original brand artwork; neither is used by the build.
+UsageBar.app/
+Assets/
+Sources/**/Resources/*-icon.png
