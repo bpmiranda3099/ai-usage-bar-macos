@@ -1,39 +1,37 @@
 # AI Usage Bar
 
-A macOS menu bar app that shows how much of your Antigravity, Claude Code and OpenCode free-tier limits you have left.
+A macOS menu bar app that shows remaining usage limits for Antigravity, Claude Code and OpenCode.
 
-Click the menu bar icon to open a panel with one section per tool. Each meter shows the percent left and when it resets. Hover a row label to see which models it covers. Click a section header to collapse it; the choice is remembered.
+## Usage
 
-## What it shows
+Click the menu bar icon to open the panel. Hover a row label to see the models it covers. Click a section header to collapse it. Data refreshes every 5 minutes. A section is hidden if its tool is missing or fails.
 
-| Section | Source | Meters |
+| Section | Tool | Shows |
 |---|---|---|
 | Antigravity | `agy` | 5 hour and weekly limits per model group |
-| Claude | `claude` | Session and weekly limits, plus per-model weekly limits if your plan has them |
-| OpenCode | `opencode` | Free models of the providers you connected, see below |
-
-Data refreshes every 5 minutes, or press the refresh button. A section only appears when its tool works on your Mac.
+| Claude | `claude` | Session and weekly limits, and per-model weekly limits where the plan has them |
+| OpenCode | `opencode` | Free models of the connected providers |
 
 ### OpenCode providers
 
-Only free models are listed. Providers that expose a usable limit get a meter. The rest share one "Other providers" row, with their models in the tooltip.
+Only free models are listed. Providers with a readable limit get a meter. All others share one "Other providers" row.
 
-| Provider | Meter | How it is read |
+| Provider | Meter | Source |
 |---|---|---|
-| OpenRouter | Free-model requests per day | Your key's usage endpoint |
-| Groq | Requests per day | Rate-limit headers from a one-token request, at most every 30 minutes |
-| Ollama Cloud | Included credits this month | Account balance endpoint |
-| Cloudflare | Free neurons per day | GraphQL analytics, against the published 10,000 per day allowance |
-| Google AI Studio | Requests per day | Limits from your Google project, usage counted from OpenCode history |
-| NVIDIA | Requests per minute | Counted from OpenCode history against a 40 per minute estimate |
+| OpenRouter | Free-model requests per day | Key info endpoint |
+| Groq | Requests per day | Rate-limit response headers |
+| Ollama Cloud | Included credits per month | Balance endpoint |
+| Cloudflare | Free neurons per day | GraphQL analytics |
+| Google AI Studio | Requests per day | Project quota limits, usage from OpenCode history |
+| NVIDIA | Requests per minute | OpenCode history against a 40 per minute estimate |
 
-Usage for Google and NVIDIA only counts requests made through OpenCode on this Mac.
+Google and NVIDIA usage only counts requests made through OpenCode on this Mac.
 
 ## Requirements
 
 - macOS 26 or later
-- Xcode 26 or a Swift 6.2 toolchain, to build
-- At least one of `agy`, `claude`, `opencode` or `gcloud`, installed and signed in
+- Xcode 26 or a Swift 6.2 toolchain
+- One or more of `agy`, `claude`, `opencode`, `gcloud`, installed and signed in
 
 ## Build and run
 
@@ -44,9 +42,9 @@ swift build -c release
 swift run -c release AIAgentsUsageBar
 ```
 
-### Run at login
+## Run at login
 
-`deploy.sh` builds the app, copies it to `~/Library/Application Support/AIAgentsUsageBar` and restarts a LaunchAgent. Create the agent first, at `~/Library/LaunchAgents/com.bpmiranda3099.aiagentsusagebar.plist`, replacing `YOU` with your user name (or change the label in `deploy.sh`):
+`deploy.sh` builds the app, copies it to `~/Library/Application Support/AIAgentsUsageBar` and restarts a LaunchAgent. Create the agent first at `~/Library/LaunchAgents/com.bpmiranda3099.aiagentsusagebar.plist`, replacing `YOU` with your user name, or change the label in `deploy.sh`.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -67,25 +65,19 @@ swift run -c release AIAgentsUsageBar
 </plist>
 ```
 
-Then run `./deploy.sh`.
-
 ## Configuration
 
-Most meters need nothing. Two need a one-time setup:
+Google AI Studio: run `gcloud auth login`, then set the project id in `~/.config/ai-agents-usage-bar/settings.json`:
 
-- **Google AI Studio:** run `gcloud auth login`, then save your project id in `~/.config/ai-agents-usage-bar/settings.json`:
+```json
+{ "googleProjectId": "your-project-id" }
+```
 
-  ```json
-  { "googleProjectId": "your-project-id" }
-  ```
+Cloudflare: the API token OpenCode uses needs the Account Analytics Read permission.
 
-- **Cloudflare:** the API token OpenCode uses needs the Account Analytics Read permission. See the [Cloudflare token guide](https://developers.cloudflare.com/analytics/graphql-api/getting-started/authentication/api-token-auth/).
+## Data and keys
 
-## Privacy
-
-- API keys are read from OpenCode's local database (read-only), used in memory for one request, and never stored or logged.
-- Each key is sent only to its own provider's host. There is no telemetry and the app opens no ports.
-- Details and the security review are in [SECURITY.md](SECURITY.md).
+API keys are read from OpenCode's local database, used for one request each, and not stored or logged. Each key is sent only to its own provider.
 
 ## Development
 
@@ -93,22 +85,22 @@ Most meters need nothing. Two need a one-time setup:
 swift test
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the layout and how to add a provider, and [CONTRIBUTING.md](CONTRIBUTING.md) for branch, commit and pull request rules.
+See [ARCHITECTURE.md](ARCHITECTURE.md) and [CONTRIBUTING.md](CONTRIBUTING.md). To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## License
 
 [MIT](../LICENSE)
 
-## Notices and sources
+## Notices
 
-Claude, Antigravity, Google, OpenCode, NVIDIA, Groq, Cloudflare, OpenRouter, Ollama, DeepSeek and the other names and logos shown belong to their owners. They are used only to identify the services being measured, are not covered by the MIT license, and this project is not affiliated with or endorsed by any of them.
+Product names and logos belong to their owners. They are used only to identify the services shown, are not covered by the MIT license, and the owners are not affiliated with this project. No third-party code is bundled.
 
-The app bundles no third-party code. Numbers and endpoints come from these references:
+## References
 
-- Cloudflare: [Workers AI pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/) (10,000 neurons per day) and [GraphQL analytics tokens](https://developers.cloudflare.com/analytics/graphql-api/getting-started/authentication/api-token-auth/)
+- Cloudflare: [Workers AI pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/), [GraphQL analytics tokens](https://developers.cloudflare.com/analytics/graphql-api/getting-started/authentication/api-token-auth/)
 - OpenRouter: [limits](https://openrouter.ai/docs/api/reference/limits)
 - Groq: [rate limits](https://console.groq.com/docs/rate-limits)
-- Google: [Service Usage API, consumerQuotaMetrics](https://docs.cloud.google.com/service-usage/docs/reference/rest/v1beta1/services.consumerQuotaMetrics)
-- NVIDIA: the 40 requests per minute figure is reported by users, for example in this [developer forum thread](https://forums.developer.nvidia.com/t/request-for-nvidia-nim-api-rate-limit-increase-40-200-rpm/378915). NVIDIA does not publish it.
-- Ollama: the balance endpoint is not publicly documented. It is described in the [opencode-quota provider notes](https://github.com/slkiser/opencode-quota/blob/main/docs/readme/providers.md).
-- OpenCode's model list and prices come from the local catalog it downloads from [models.dev](https://models.dev).
+- Google: [consumerQuotaMetrics](https://docs.cloud.google.com/service-usage/docs/reference/rest/v1beta1/services.consumerQuotaMetrics)
+- NVIDIA: the 40 per minute figure is user-reported, for example in this [forum thread](https://forums.developer.nvidia.com/t/request-for-nvidia-nim-api-rate-limit-increase-40-200-rpm/378915). NVIDIA does not publish it.
+- Ollama: the balance endpoint is undocumented. See the [opencode-quota provider notes](https://github.com/slkiser/opencode-quota/blob/main/docs/readme/providers.md).
+- OpenCode model list and prices: [models.dev](https://models.dev)

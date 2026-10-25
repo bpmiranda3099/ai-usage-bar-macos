@@ -67,6 +67,21 @@ OpenCode providers get meters from `ProviderUsageAPI` (direct provider APIs) or
 - Network calls go through `HTTPClient` only; SQLite reads through `SQLiteReader` only.
 - Text from providers is shown with `Text(verbatim:)`.
 
+## Handling keys and untrusted input
+
+- API keys come from OpenCode's local database, are used for one request each, and are never
+  stored, logged, or placed in a URL.
+- All network calls go through `HTTPClient`: HTTPS only, a fixed host list, no redirects,
+  uncompressed responses, 1 MB limit, 10 second total timeout, non-200 responses discarded.
+- External tools run through `SubprocessRunner` and `Tool`: absolute paths, fixed arguments,
+  no shell, stdin and stderr closed, SIGTERM then SIGKILL on timeout, 8 MB output limit, run
+  from a private directory. A tool must be owned by the user or root and not writable by
+  group or others.
+- SQLite is opened read-only and queried with bound parameters only.
+- Parsers return no data on malformed input, and numeric values from providers are
+  range-checked.
+- There are no third-party Swift packages, and nothing runs `node` or `npm`.
+
 ## Tests
 
 `swift test` runs the suites in `Tests/UsageBarCoreTests`: parsers, section building, the
