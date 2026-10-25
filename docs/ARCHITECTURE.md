@@ -80,7 +80,7 @@ OpenCode providers get meters from `ProviderUsageAPI` (direct provider APIs) or
 - SQLite is opened read-only and queried with bound parameters only.
 - Parsers return no data on malformed input, and numeric values from providers are
   range-checked.
-- There are no third-party Swift packages, and nothing runs `node` or `npm`.
+- There are no third-party Swift packages.
 
 ## Tests
 
