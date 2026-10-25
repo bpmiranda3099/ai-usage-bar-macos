@@ -291,7 +291,7 @@ enum UsageFetcher {
 
     /// `agy models` prints "<id>\t<Display Name (Effort)>" per line (plus a
     /// status line). Returns distinct display names with the effort suffix removed.
-    private static func parseModelNames(_ output: String?) -> [String] {
+    static func parseModelNames(_ output: String?) -> [String] {
         guard let output else { return [] }
         var names: [String] = []
         for line in output.split(separator: "\n") {
@@ -310,7 +310,7 @@ enum UsageFetcher {
     /// whose key is the longest prefix of the model name wins (e.g. "Gemini 4
     /// Argon"); otherwise the first group whose key mentions the model's
     /// family word (e.g. "Claude", "GPT", "Gemini").
-    private static func groupModels(_ names: [String], groupKeys: [String]) -> [String: [String]] {
+    static func groupModels(_ names: [String], groupKeys: [String]) -> [String: [String]] {
         var result: [String: [String]] = [:]
         for name in names {
             let lowered = name.lowercased()

@@ -31,17 +31,22 @@ enum ClaudeCodeUsageFetcher {
 
     static func fetch() -> Result? {
         guard let output = runClaude() else { return nil }
+        return parseUsage(output)
+    }
+
+    /// `now` decides which year the year-less dates in the output belong to.
+    static func parseUsage(_ output: String, now: Date = Date()) -> Result? {
         let lines = output.split(separator: "\n").map(String.init)
 
         guard let sessionLine = lines.first(where: { $0.contains("Current session") }),
               let weekLine = lines.first(where: { $0.contains("Current week") }),
-              let session = parse(sessionLine),
-              let week = parse(weekLine) else {
+              let session = parse(sessionLine, now: now),
+              let week = parse(weekLine, now: now) else {
             return nil
         }
 
         let extras = lines.compactMap { line -> ExtraWeekly? in
-            guard let name = extraWeeklyName(in: line), let parsed = parse(line) else { return nil }
+            guard let name = extraWeeklyName(in: line), let parsed = parse(line, now: now) else { return nil }
             return ExtraWeekly(name: name, percent: 100 - parsed.usedPercent, reset: parsed.reset)
         }
 
@@ -62,7 +67,7 @@ enum ClaudeCodeUsageFetcher {
         return name.caseInsensitiveCompare("all models") == .orderedSame ? nil : name
     }
 
-    private static func parse(_ line: String) -> (usedPercent: Int, reset: Date)? {
+    private static func parse(_ line: String, now: Date) -> (usedPercent: Int, reset: Date)? {
         let range = NSRange(line.startIndex..., in: line)
         guard let match = lineRegex.firstMatch(in: line, options: [], range: range) else { return nil }
 
@@ -78,7 +83,8 @@ enum ClaudeCodeUsageFetcher {
 
         let normalizedTime = timeStr.replacingOccurrences(of: " ", with: "")
         let hasMinutes = normalizedTime.contains(":")
-        let dateString = "\(monthDay) \(currentYear()) \(normalizedTime)"
+        let year = Calendar.current.component(.year, from: now)
+        let dateString = "\(monthDay) \(year) \(normalizedTime)"
         let format = hasMinutes ? "MMM d yyyy h:mma" : "MMM d yyyy ha"
 
         let formatter = DateFormatter()
@@ -91,7 +97,6 @@ enum ClaudeCodeUsageFetcher {
         // No year in the source text; if the parsed date already passed,
         // it must refer to the next occurrence (roll forward a day for the
         // 5h session window, a week for the weekly window).
-        let now = Date()
         if date <= now {
             let isWeekly = line.contains("week")
             date = date.addingTimeInterval(isWeekly ? 7 * 86400 : 86400)
@@ -100,17 +105,17 @@ enum ClaudeCodeUsageFetcher {
         return (percent, date)
     }
 
-    private static func currentYear() -> Int {
-        Calendar.current.component(.year, from: Date())
-    }
-
     /// Model aliases Claude Code accepts, read from `claude -p "/model"`, e.g.
     ///   Available: sonnet, opus, haiku, fable, best, sonnet[1m], opusplan, default, or a full model ID.
     /// Context-window variants ("[1m]") and mode selectors that aren't models
     /// are dropped; the rest is capitalized for display. Local command, no model call.
     static func fetchModels() -> [String] {
-        guard let output = runClaude(arguments: ["-p", "/model"]),
-              let range = output.range(of: "Available:") else { return [] }
+        guard let output = runClaude(arguments: ["-p", "/model"]) else { return [] }
+        return parseModels(output)
+    }
+
+    static func parseModels(_ output: String) -> [String] {
+        guard let range = output.range(of: "Available:") else { return [] }
         let selectorsThatAreNotModels: Set<String> = ["best", "default", "opusplan"]
         let list = output[range.upperBound...].split(separator: "\n").first.map(String.init) ?? ""
         var names: [String] = []

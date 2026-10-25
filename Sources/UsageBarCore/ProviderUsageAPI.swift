@@ -169,14 +169,14 @@ enum ProviderUsageAPI {
     // MARK: Helpers
 
     /// Next midnight in the given time zone (start of the next day).
-    static func nextMidnight(in zone: String) -> Date? {
+    static func nextMidnight(in zone: String, after now: Date = Date()) -> Date? {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: zone) ?? .gmt
-        return calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date()))
+        return calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
     }
 
     /// Parses durations like "12.342s", "2m59.56s", "1h2m3s" or "90ms" into seconds.
-    private static func parseDuration(_ text: String?) -> TimeInterval? {
+    static func parseDuration(_ text: String?) -> TimeInterval? {
         guard let text, !text.isEmpty,
               let regex = try? NSRegularExpression(pattern: #"(\d+(?:\.\d+)?)(ms|h|m|s)"#) else { return nil }
         let range = NSRange(text.startIndex..., in: text)
@@ -196,7 +196,7 @@ enum ProviderUsageAPI {
         return found ? total : nil
     }
 
-    private static func percent(_ fraction: Double) -> Int {
+    static func percent(_ fraction: Double) -> Int {
         max(0, min(100, Int((fraction * 100).rounded())))
     }
 
