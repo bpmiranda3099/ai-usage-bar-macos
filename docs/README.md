@@ -28,17 +28,18 @@ Google and NVIDIA usage only counts requests made through OpenCode on this Mac.
 ## Requirements
 
 - macOS 26 or later
-- Xcode 26 or a Swift 6.2 toolchain
+- Command Line Tools 26 or Xcode 26 (Swift 6.2), to build
 - One or more of `agy`, `claude`, `opencode`, `gcloud`, installed and signed in
 
 ## Install
 
 ```sh
-brew install bpmiranda3099/tap/ai-usage-bar
+brew tap bpmiranda3099/ai-usage-bar https://github.com/bpmiranda3099/ai-usage-bar-macos
+brew install bpmiranda3099/ai-usage-bar/ai-usage-bar
 brew services start ai-usage-bar
 ```
 
-`brew services start` launches the app and restarts it at login. The formula builds from source, so it needs Xcode 26.
+`brew services start` launches the app and restarts it at login. The formula builds from source with the Command Line Tools that Homebrew already requires.
 
 ## Build from source
 
