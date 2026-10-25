@@ -27,3 +27,12 @@ struct PercentTests {
         #expect(Percent.remaining(used: 0, limit: -3) == 0)
     }
 }
+
+extension PercentTests {
+    @Test func nonFiniteFractionsFromProvidersDoNotTrap() {
+        #expect(Percent.fromFraction(.nan) == 0)
+        #expect(Percent.fromFraction(.infinity) == 0)
+        #expect(Percent.fromFraction(-.infinity) == 0)
+        #expect(Percent.fromFraction(1e300) == 100)
+    }
+}

@@ -23,3 +23,10 @@ struct ResetAndPercentTests {
         #expect(ProviderUsageAPI.nextMidnight(in: "America/Los_Angeles", after: now) == iso("2026-10-26T07:00:00Z"))
     }
 }
+
+extension ResetAndPercentTests {
+    @Test func hostileDurationsAreCappedOrRejected() throws {
+        #expect(ProviderUsageAPI.parseDuration("99999999999999999999h") == TimeInterval(30 * 86_400))
+        #expect(ProviderUsageAPI.parseDuration("inf") == nil)
+    }
+}

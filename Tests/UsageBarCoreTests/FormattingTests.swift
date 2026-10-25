@@ -29,3 +29,12 @@ struct FormattingTests {
         #expect(Formatting.countdownClockLabel(for: target, from: now).hasPrefix("2h 15m, "))
     }
 }
+
+extension FormattingTests {
+    @Test func absurdlyFarResetsDoNotOverflow() {
+        let far = Date(timeIntervalSince1970: 1_000_000).addingTimeInterval(1e20)
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        #expect(!Formatting.countdown(to: far, from: now).isEmpty)
+        #expect(!Formatting.countdownClockLabel(for: far, from: now).isEmpty)
+    }
+}

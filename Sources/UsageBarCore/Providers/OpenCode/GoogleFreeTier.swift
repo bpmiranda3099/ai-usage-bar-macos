@@ -70,7 +70,7 @@ enum GoogleFreeTier {
         guard let data = FileManager.default.contents(atPath: path),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let id = json["googleProjectId"] as? String,
-              id.range(of: #"^[a-z][a-z0-9-]{4,60}$"#, options: .regularExpression) != nil else { return nil }
+              id.wholeMatch(of: /[a-z][a-z0-9-]{4,60}/) != nil else { return nil }
         return id
     }
 
@@ -84,7 +84,7 @@ enum GoogleFreeTier {
         guard let token = Tool.gcloud.run(["auth", "print-access-token"])?
                 .trimmingCharacters(in: .whitespacesAndNewlines), !token.isEmpty,
               let url = URL(string: "https://serviceusage.googleapis.com/v1beta1/projects/\(projectID)/services/generativelanguage.googleapis.com/consumerQuotaMetrics?view=FULL&pageSize=200"),
-              let data = ProviderUsageAPI.get(url, bearer: token, extraHeaders: ["x-goog-user-project": projectID]),
+              let data = HTTPClient.shared.get(url, bearer: token, headers: ["x-goog-user-project": projectID])?.body,
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let metrics = root["metrics"] as? [[String: Any]] else {
             return cache.limits   // keep the last good limits if this refresh fails

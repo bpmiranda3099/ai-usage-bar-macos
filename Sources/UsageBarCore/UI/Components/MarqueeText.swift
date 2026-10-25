@@ -15,7 +15,7 @@ struct MarqueeText: View {
     private var overflow: CGFloat { max(0, textWidth - width) }
 
     var body: some View {
-        Text(text)
+        Text(verbatim: text)
             .font(.system(size: 11))
             .foregroundStyle(.secondary)
             .lineLimit(1)

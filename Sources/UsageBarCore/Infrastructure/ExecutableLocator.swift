@@ -31,7 +31,20 @@ enum Tool {
 }
 
 enum ExecutableLocator {
+    /// First candidate that is executable and trustworthy (see `isTrusted`).
     static func firstExecutable(in candidates: [String]) -> String? {
-        candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
+        candidates.first { FileManager.default.isExecutableFile(atPath: $0) && isTrusted($0) }
+    }
+
+    /// The file behind the path (after symlinks) must belong to the current user or root
+    /// and must not be writable by group or others, so another account or a loose
+    /// permission can't swap in a different program.
+    static func isTrusted(_ path: String) -> Bool {
+        let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: resolved),
+              let owner = attributes[.ownerAccountID] as? NSNumber,
+              let permissions = attributes[.posixPermissions] as? NSNumber else { return false }
+        let ownedByUserOrRoot = owner.uint32Value == getuid() || owner.uint32Value == 0
+        return ownedByUserOrRoot && permissions.intValue & 0o022 == 0
     }
 }

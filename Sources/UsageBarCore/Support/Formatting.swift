@@ -23,8 +23,11 @@ enum Formatting {
         weekdayClockFormatter.string(from: date)
     }
 
+    /// Longest countdown shown; keeps absurd provider dates from overflowing Int math.
+    private static let maxCountdown: TimeInterval = 366 * 24 * 3600
+
     static func countdown(to date: Date, from now: Date = Date()) -> String {
-        let seconds = date.timeIntervalSince(now)
+        let seconds = min(date.timeIntervalSince(now), maxCountdown)
         if seconds <= 0 { return "now" }
         if seconds < 60 { return "\(Int(seconds))s" }
         let totalMinutes = Int(seconds / 60)
@@ -42,7 +45,7 @@ enum Formatting {
     /// Compact "1h 15m, 5:27 PM" — countdown plus clock time, used for the
     /// near-term (5h) reset.
     static func countdownClockLabel(for date: Date, from now: Date = Date()) -> String {
-        let seconds = date.timeIntervalSince(now)
+        let seconds = min(date.timeIntervalSince(now), maxCountdown)
         // Resets a day or more away read as "20d 6h, 10:46 AM": days and hours
         // left, then the hour it lands on.
         if seconds >= 24 * 3600 {

@@ -8,7 +8,9 @@ enum Percent {
 
     /// 0.5 -> 50. Out-of-range fractions are clamped.
     static func fromFraction(_ fraction: Double) -> Int {
-        clamped(Int((fraction * 100).rounded()))
+        // NaN and infinity can arrive from provider responses; Int(_:) would trap on them.
+        guard fraction.isFinite else { return 0 }
+        return clamped(Int((max(-1, min(2, fraction)) * 100).rounded()))
     }
 
     /// Percent of `limit` still available after `used`; 0 when the limit is not positive.

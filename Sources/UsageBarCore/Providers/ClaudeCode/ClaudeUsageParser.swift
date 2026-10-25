@@ -24,11 +24,6 @@ enum ClaudeUsageParser {
         let reset: Date
     }
 
-    private static let lineRegex = try! NSRegularExpression(
-        pattern: #"(\d{1,3})%\s+used\s*(?:\([^)]*\))?\s*·\s*resets\s+([A-Za-z]{3}\s+\d{1,2})\s+at\s+(\d{1,2}(?::\d{2})?\s*[ap]m)\s*\(([^)]+)\)"#,
-        options: [.caseInsensitive]
-    )
-
     /// `now` decides which year the year-less dates in the output belong to.
     static func parseUsage(_ output: String, now: Date = Date()) -> Result? {
         let lines = output.split(separator: "\n").map(String.init)
@@ -42,13 +37,13 @@ enum ClaudeUsageParser {
 
         let extras = lines.compactMap { line -> ExtraWeekly? in
             guard let name = extraWeeklyName(in: line), let parsed = parse(line, now: now) else { return nil }
-            return ExtraWeekly(name: name, percent: 100 - parsed.usedPercent, reset: parsed.reset)
+            return ExtraWeekly(name: name, percent: Percent.clamped(100 - parsed.usedPercent), reset: parsed.reset)
         }
 
         return Result(
-            fiveHourPercent: 100 - session.usedPercent,
+            fiveHourPercent: Percent.clamped(100 - session.usedPercent),
             fiveHourReset: session.reset,
-            weeklyPercent: 100 - week.usedPercent,
+            weeklyPercent: Percent.clamped(100 - week.usedPercent),
             weeklyReset: week.reset,
             extraWeekly: extras
         )
@@ -63,18 +58,10 @@ enum ClaudeUsageParser {
     }
 
     private static func parse(_ line: String, now: Date) -> (usedPercent: Int, reset: Date)? {
-        let range = NSRange(line.startIndex..., in: line)
-        guard let match = lineRegex.firstMatch(in: line, options: [], range: range) else { return nil }
-
-        func group(_ index: Int) -> String? {
-            guard let r = Range(match.range(at: index), in: line) else { return nil }
-            return String(line[r])
-        }
-
-        guard let percentStr = group(1), let percent = Int(percentStr),
-              let monthDay = group(2), let timeStr = group(3), let tzName = group(4) else {
-            return nil
-        }
+        // The pattern is a compile-time checked literal, so there is no runtime regex construction to fail.
+        guard let match = line.firstMatch(of: /(\d{1,3})%\s+used\s*(?:\([^)]*\)\s*)?·\s*resets\s+([A-Za-z]{3}\s+\d{1,2})\s+at\s+(\d{1,2}(?::\d{2})?\s*[ap]m)\s*\(([^)]+)\)/.ignoresCase()),
+              let percent = Int(match.1) else { return nil }
+        let monthDay = String(match.2), timeStr = String(match.3), tzName = String(match.4)
 
         let normalizedTime = timeStr.replacingOccurrences(of: " ", with: "")
         let hasMinutes = normalizedTime.contains(":")
