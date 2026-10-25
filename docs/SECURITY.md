@@ -41,7 +41,7 @@ stores, so keep that database private and rotate keys if you suspect exposure.
 
 ## Review
 
-A BridgeSecurity audit of `Sources/` found no Critical, High or Medium issues. Findings and
+A [BridgeSecurity](https://github.com/bridge-mind/BridgeSecurity) (MIT) audit of `Sources/` found no Critical, High or Medium issues. Findings and
 what was done:
 
 | # | Severity | Finding | Status |
