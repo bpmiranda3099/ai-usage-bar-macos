@@ -24,6 +24,8 @@ Examples: `fix/groq-reset-header`, `refactor/shared-infrastructure`.
 
 `type: summary`, imperative, under 72 characters, no emojis. Use the same types as
 branches. Add a short body only when the why is not obvious. No author trailers.
+The types follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
+specification.
 
 ## Pull requests
 
