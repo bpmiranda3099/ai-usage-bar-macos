@@ -27,7 +27,7 @@ enum AgyOutputParser {
                   let percent = Int(cols[2].replacingOccurrences(of: "%", with: "")),
                   let reset = formatter.date(from: cols[3]) else { continue }
 
-            let window = AgyGroup.Window(percentLeft: percent, reset: reset)
+            let window = AgyGroup.Window(percentLeft: Percent.clamped(percent), reset: reset)
             let index = groups.firstIndex { $0.key == cols[0] } ?? {
                 groups.append(AgyGroup(key: cols[0]))
                 return groups.count - 1

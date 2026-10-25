@@ -34,4 +34,18 @@ struct PathAndToolTests {
         #expect(ExecutableLocator.firstExecutable(in: [directory + "/absent", plain, runnable]) == runnable)
         #expect(ExecutableLocator.firstExecutable(in: [directory + "/absent", plain]) == nil)
     }
+
+    @Test func executablesWritableByOthersAreNotTrusted() throws {
+        let directory = NSTemporaryDirectory() + "usagebar-trust-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: directory) }
+
+        let loose = directory + "/loose"
+        try "#!/bin/sh\n".write(toFile: loose, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o777], ofItemAtPath: loose)
+        #expect(ExecutableLocator.firstExecutable(in: [loose]) == nil)
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: loose)
+        #expect(ExecutableLocator.firstExecutable(in: [loose]) == loose)
+    }
 }

@@ -14,7 +14,6 @@ import Foundation
 ///  - Groq: a one-token chat request; the response headers carry the daily limit
 ///    (`x-ratelimit-limit-requests` / `x-ratelimit-remaining-requests`)
 enum ProviderUsageAPI {
-    private static let requestTimeout: TimeInterval = 10
     private static let groqProbeInterval: TimeInterval = 30 * 60
     /// Cloudflare's published free Workers AI allowance per UTC day. Not exposed by any API.
     private static let cloudflareFreeNeuronsPerDay = 10_000.0
@@ -54,7 +53,7 @@ enum ProviderUsageAPI {
 
     private static func openRouterQuota(key: String) -> OpenCodeUsageFetcher.Quota? {
         guard let url = URL(string: "https://openrouter.ai/api/v1/key"),
-              let (data, _) = send(URLRequest(url: url), key: key),
+              let data = HTTPClient.shared.get(url, bearer: key)?.body,
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let info = root["data"] as? [String: Any],
               let daily = info["free_model_daily_requests"] as? [String: Any],
@@ -69,7 +68,7 @@ enum ProviderUsageAPI {
 
     private static func ollamaQuota(key: String) -> OpenCodeUsageFetcher.Quota? {
         guard let url = URL(string: "https://ollama.com/api/balance"),
-              let (data, _) = send(URLRequest(url: url), key: key),
+              let data = HTTPClient.shared.get(url, bearer: key)?.body,
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let included = root["included"] as? [String: Any],
               let balance = (included["balance_usd"] as? NSNumber)?.doubleValue,
@@ -90,29 +89,39 @@ enum ProviderUsageAPI {
     // MARK: Cloudflare
 
     private static func cloudflareQuota(key: String, accountID: String) -> OpenCodeUsageFetcher.Quota? {
-        guard accountID.allSatisfy({ $0.isHexDigit }), let url = URL(string: "https://api.cloudflare.com/client/v4/graphql") else { return nil }
+        guard !accountID.isEmpty, let url = URL(string: "https://api.cloudflare.com/client/v4/graphql") else { return nil }
 
         let now = Date()
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt
         let formatter = ISO8601DateFormatter()
-        let start = formatter.string(from: calendar.startOfDay(for: now))
-        let end = formatter.string(from: now)
 
-        let query = "{ viewer { accounts(filter:{accountTag:\"\(accountID)\"}) { aiInferenceAdaptiveGroups(limit: 1, filter:{datetime_geq:\"\(start)\", datetime_leq:\"\(end)\"}) { sum { totalNeurons } } } } }"
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try? JSONSerialization.data(withJSONObject: ["query": query])
+        // Values travel as GraphQL variables, never spliced into the query text.
+        let query = """
+            query($account: String!, $start: Time!, $end: Time!) {
+              viewer { accounts(filter: { accountTag: $account }) {
+                aiInferenceAdaptiveGroups(limit: 1, filter: { datetime_geq: $start, datetime_leq: $end }) { sum { totalNeurons } }
+              } }
+            }
+            """
+        let payload: [String: Any] = [
+            "query": query,
+            "variables": [
+                "account": accountID,
+                "start": formatter.string(from: calendar.startOfDay(for: now)),
+                "end": formatter.string(from: now),
+            ],
+        ]
 
-        guard let (data, _) = send(request, key: key),
+        guard let data = HTTPClient.shared.post(url, json: payload, bearer: key)?.body,
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               root["errors"] == nil || root["errors"] is NSNull,
               let accounts = ((root["data"] as? [String: Any])?["viewer"] as? [String: Any])?["accounts"] as? [[String: Any]],
               let groups = accounts.first?["aiInferenceAdaptiveGroups"] as? [[String: Any]] else { return nil }
 
         // No groups means no inference today.
-        let used = (groups.first?["sum"] as? [String: Any]).flatMap { ($0["totalNeurons"] as? NSNumber)?.doubleValue } ?? 0
+        let rawUsed = (groups.first?["sum"] as? [String: Any]).flatMap { ($0["totalNeurons"] as? NSNumber)?.doubleValue } ?? 0
+        let used = rawUsed.isFinite ? min(max(0, rawUsed), 1e12) : 0
         let left = max(0, cloudflareFreeNeuronsPerDay - used)
         return OpenCodeUsageFetcher.Quota(
             label: "1d",
@@ -144,17 +153,14 @@ enum ProviderUsageAPI {
         guard let model = models.sorted().first(where: { id in !nonChat.contains { id.lowercased().contains($0) } }),
               let url = URL(string: "https://api.groq.com/openai/v1/chat/completions") else { return nil }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try? JSONSerialization.data(withJSONObject: [
+        let payload: [String: Any] = [
             "model": model,
             "max_tokens": 1,
             "messages": [["role": "user", "content": "."]],
-        ])
+        ]
 
         var quota: OpenCodeUsageFetcher.Quota?
-        if let (_, response) = send(request, key: key),
+        if let response = HTTPClient.shared.post(url, json: payload, bearer: key)?.http,
            let limit = Double(response.value(forHTTPHeaderField: "x-ratelimit-limit-requests") ?? ""), limit > 0,
            let remaining = Double(response.value(forHTTPHeaderField: "x-ratelimit-remaining-requests") ?? "") {
             let resetAt = parseDuration(response.value(forHTTPHeaderField: "x-ratelimit-reset-requests")).map { Date().addingTimeInterval($0) }
@@ -192,42 +198,10 @@ enum ProviderUsageAPI {
             default: total += value / 1000
             }
         }
-        return found ? total : nil
+        // Provider headers can say "inf" or huge numbers; cap at 30 days.
+        return found && total.isFinite ? min(total, 30 * 86_400) : nil
     }
 
-
-    /// Synchronous HTTPS request with a timeout. The key is only placed in the
-    /// Authorization header of requests to the fixed provider URLs above.
-    /// GET with a bearer token and optional extra headers; returns the body on HTTP 200.
-    static func get(_ url: URL, bearer: String, extraHeaders: [String: String] = [:]) -> Data? {
-        var request = URLRequest(url: url)
-        for (name, value) in extraHeaders { request.setValue(value, forHTTPHeaderField: name) }
-        return send(request, key: bearer)?.0
-    }
-
-    private static func send(_ request: URLRequest, key: String) -> (Data, HTTPURLResponse)? {
-        guard request.url?.scheme == "https" else { return nil }
-        var request = request
-        request.timeoutInterval = requestTimeout
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-
-        final class Box: @unchecked Sendable { var result: (Data, HTTPURLResponse)? }
-        let box = Box()
-        let semaphore = DispatchSemaphore(value: 0)
-        let task = URLSession.shared.dataTask(with: request) { data, response, _ in
-            if let data, let http = response as? HTTPURLResponse, http.statusCode == 200 {
-                box.result = (data, http)
-            }
-            semaphore.signal()
-        }
-        task.resume()
-        if semaphore.wait(timeout: .now() + requestTimeout + 2) == .timedOut {
-            task.cancel()
-            return nil
-        }
-        return box.result
-    }
 
     /// Reads one credential record (API key plus metadata) from OpenCode's credential
     /// table: read-only, parameterized query, newest row for the provider.
