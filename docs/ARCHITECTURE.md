@@ -1,7 +1,5 @@
 # Architecture
 
-A macOS menu bar app that shows Antigravity, Claude Code and OpenCode usage as meters.
-
 ## Layout
 
 ```
@@ -23,14 +21,13 @@ deploy.sh                  Build and install as a LaunchAgent
 
 ## How data flows
 
-1. `UsageStore` asks every provider in `ProviderRegistry.all` for its sections, all at once,
-   and keeps them in registry order.
-2. A provider runs its tool or API, parses the result into rows and meters, and returns
-   `[UsageSection]`. If it has nothing to show it returns `[]`; it never throws.
-3. `ContentView` loops over the sections and renders each with `ProviderSectionView`.
-   Nothing in the UI knows about a specific provider.
+1. `UsageStore` fetches every provider in `ProviderRegistry.all` concurrently and keeps
+   registry order.
+2. A provider runs its tool or API and returns `[UsageSection]`, or `[]` when it has nothing
+   to show. It does not throw.
+3. `ContentView` renders each section with `ProviderSectionView`.
 4. Rows with a `liveMeter` closure (the NVIDIA per-minute meter) are recomputed every few
-   seconds while the panel is open, from local data only.
+   seconds while the panel is open, from local data.
 
 ## Domain model
 
@@ -63,13 +60,25 @@ OpenCode providers get meters from `ProviderUsageAPI` (direct provider APIs) or
 ## Conventions
 
 - Time-dependent code takes a `now:` parameter instead of reading the clock.
-- External tools run through `Tool` (absolute paths, fixed arguments, no shell).
-- Network calls go through `HTTPClient` only; SQLite reads through `SQLiteReader` only.
 - Text from providers is shown with `Text(verbatim:)`.
+
+## Handling keys and untrusted input
+
+- API keys come from OpenCode's local database, are used for one request each, and are never
+  stored, logged, or placed in a URL.
+- All network calls go through `HTTPClient`: HTTPS only, a fixed host list, no redirects,
+  uncompressed responses, 1 MB limit, 10 second total timeout, non-200 responses discarded.
+- External tools run through `SubprocessRunner` and `Tool`: absolute paths, fixed arguments,
+  no shell, stdin and stderr closed, SIGTERM then SIGKILL on timeout, 8 MB output limit, run
+  from a private directory. A tool must be owned by the user or root and not writable by
+  group or others.
+- SQLite is opened read-only and queried with bound parameters only.
+- Parsers return no data on malformed input, and numeric values from providers are
+  range-checked.
+- There are no third-party Swift packages.
 
 ## Tests
 
-`swift test` runs the suites in `Tests/UsageBarCoreTests`: parsers, section building, the
-store, the HTTP client rules, the subprocess runner, and the SQLite reader. Network and
-subprocess behavior is tested with stubs and temp files; nothing in the suite talks to the
-real services. The panel itself is checked by hand with `./deploy.sh`.
+`swift test` runs `Tests/UsageBarCoreTests`. Network and subprocess behavior is tested with
+stubs and temp files, so the suite does not call real services. The panel is checked manually
+with `./deploy.sh`.
