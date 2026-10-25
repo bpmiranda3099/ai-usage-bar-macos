@@ -1,12 +1,12 @@
 import Foundation
+import SQLite3
 
 /// Usage for OpenCode's connected providers. Everything is read at runtime,
 /// nothing is hardcoded per model or provider:
 ///  - connected providers/models: `opencode models`
 ///  - which models are free: OpenCode's own catalog (`models.json`, cost 0)
 ///  - usage: `opencode stats --models --json` (local request counts) and, where a
-///    provider reports a quota, `opencode-quota show` (live, no config needed)
-import SQLite3
+///    provider reports one, the provider's own API (see ProviderUsageAPI)
 
 enum OpenCodeUsageFetcher {
     /// Per-minute request caps for providers that publish no usage API. These are
@@ -25,7 +25,6 @@ enum OpenCodeUsageFetcher {
     struct Quota {
         let label: String?
         let percentLeft: Int?
-        let value: String?
         /// Extra context for the tooltip (e.g. which model a limit applies to).
         var note: String? = nil
         /// When the window resets, if the provider (or its documented schedule) says so.
@@ -57,7 +56,6 @@ enum OpenCodeUsageFetcher {
 
         let todayCounts = requestCounts(opencode: opencode, days: 0)
         let weekCounts = requestCounts(opencode: opencode, days: 7)
-        let quotas = fetchQuotas()
         let history = providerHistory(opencode: opencode)
         let apiQuotas = ProviderUsageAPI.fetch(connected: connected, databasePath: databasePath(opencode: opencode))
 
@@ -67,8 +65,6 @@ enum OpenCodeUsageFetcher {
             func total(_ counts: [String: [String: Int]]) -> Int {
                 (counts[id] ?? [:]).filter { modelIDs.contains($0.key) }.values.reduce(0, +)
             }
-            let lowered = provider.name.lowercased()
-            let quota = quotas[lowered] ?? quotas.first { $0.key.contains(lowered) || lowered.contains($0.key) }?.value
             return ProviderUsage(
                 id: id,
                 name: provider.name,
@@ -79,7 +75,7 @@ enum OpenCodeUsageFetcher {
                 rateResetAt: perMinuteLimits[id] == nil ? nil : requestsInLastMinute(providerID: id)?.resetAt,
                 totalRequests: history[id]?.count ?? 0,
                 lastUsed: history[id]?.lastUsed,
-                quota: apiQuotas[id] ?? quota
+                quota: apiQuotas[id]
             )
         }
     }
@@ -236,44 +232,6 @@ enum OpenCodeUsageFetcher {
             }
         }
         return nil
-    }
-
-    // MARK: Quota
-
-    /// Parses `opencode-quota show`, e.g.
-    ///   [Ollama Cloud] Monthly
-    ///   ████████░░  100% left
-    ///   [OpenRouter]                        $0.00
-    /// Keyed by lowercased provider name; only the first window per provider is kept.
-    private static func fetchQuotas() -> [String: Quota] {
-        // The CLI is a `#!/usr/bin/env node` script and the LaunchAgent's PATH has no
-        // node, so launch node explicitly with the script path.
-        guard let tool = executable(["/opt/homebrew/bin/opencode-quota", "/usr/local/bin/opencode-quota"]),
-              let node = executable(["/opt/homebrew/bin/node", "/usr/local/bin/node"]),
-              let output = SubprocessRunner.run(executablePath: node, arguments: [tool, "show"]) else { return [:] }
-
-        let lines = output.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        var result: [String: Quota] = [:]
-        for (index, line) in lines.enumerated() {
-            guard line.hasPrefix("["), let close = line.firstIndex(of: "]") else { continue }
-            let provider = String(line[line.index(after: line.startIndex)..<close]).lowercased()
-            guard result[provider] == nil else { continue }
-
-            let rest = line[line.index(after: close)...]
-            let columns = rest.components(separatedBy: "  ").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-
-            var percent: Int?
-            if index + 1 < lines.count, let range = lines[index + 1].range(of: #"(\d{1,3})%\s+left"#, options: .regularExpression) {
-                percent = Int(lines[index + 1][range].prefix(while: { $0.isNumber }))
-            }
-
-            if percent != nil {
-                result[provider] = Quota(label: columns.first, percentLeft: percent, value: nil)
-            } else if let value = columns.last {
-                result[provider] = Quota(label: columns.count > 1 ? columns.first : nil, percentLeft: nil, value: value)
-            }
-        }
-        return result
     }
 
     private static func executable(_ candidates: [String]) -> String? {
