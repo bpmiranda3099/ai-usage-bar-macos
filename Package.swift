@@ -5,10 +5,20 @@ let package = Package(
     name: "ai-agents-usage-bar",
     platforms: [.macOS(.v26)],
     targets: [
+        .target(
+            name: "UsageBarCore",
+            path: "Sources/UsageBarCore",
+            resources: [.copy("Resources")]
+        ),
         .executableTarget(
             name: "AIAgentsUsageBar",
-            path: "Sources/AIAgentsUsageBar",
-            resources: [.copy("Resources")]
-        )
+            dependencies: ["UsageBarCore"],
+            path: "Sources/AIAgentsUsageBar"
+        ),
+        .testTarget(
+            name: "UsageBarCoreTests",
+            dependencies: ["UsageBarCore"],
+            path: "Tests/UsageBarCoreTests"
+        ),
     ]
 )

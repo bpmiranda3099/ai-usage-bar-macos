@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UsageBarCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {

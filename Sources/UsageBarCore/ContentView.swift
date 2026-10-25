@@ -1,15 +1,15 @@
 import SwiftUI
 
-struct ContentView: View {
+public struct ContentView: View {
     static let cornerRadius: CGFloat = 20
 
     /// Accordion state, persisted in UserDefaults so it survives restarts and redeploys.
-    static let toggleDuration: TimeInterval = 0.25
+    public static let toggleDuration: TimeInterval = 0.25
     static let toggleAnimation = Animation.easeInOut(duration: toggleDuration)
     /// Posted when a section toggles: userInfo "height" is the expected final
     /// height, "grow" says whether the panel should grow ahead of the animation.
-    static let toggleNotification = Notification.Name("ContentViewSectionToggled")
-    static let sizeNotification = Notification.Name("ContentViewSizeChanged")
+    public static let toggleNotification = Notification.Name("ContentViewSectionToggled")
+    public static let sizeNotification = Notification.Name("ContentViewSizeChanged")
 
     private static func loadExpanded(_ key: String) -> Bool {
         UserDefaults.standard.object(forKey: key) as? Bool ?? true
@@ -29,7 +29,9 @@ struct ContentView: View {
         var size: CGSize = .zero
     }
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
             content(now: context.date)
         }
