@@ -1,4 +1,5 @@
 import SwiftUI
+import UsageBarCore
 
 @main
 struct AIAgentsUsageBarApp: App {

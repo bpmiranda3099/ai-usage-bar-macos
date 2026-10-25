@@ -1,8 +1,8 @@
 import AppKit
 
 /// Status bar icon: a filled variant of the Lucide "bot-message-square" icon on a 24x24 grid.
-enum StatusBarIcon {
-    static func make(pointSize: CGFloat = 18) -> NSImage {
+public enum StatusBarIcon {
+    public static func make(pointSize: CGFloat = 18) -> NSImage {
         let image = NSImage(size: NSSize(width: pointSize, height: pointSize), flipped: true) { rect in
             guard let context = NSGraphicsContext.current else { return false }
             context.cgContext.scaleBy(x: rect.width / 24, y: rect.height / 24)

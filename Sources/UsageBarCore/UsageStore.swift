@@ -2,7 +2,7 @@ import Foundation
 import Combine
 
 @MainActor
-final class UsageStore: ObservableObject {
+public final class UsageStore: ObservableObject {
     @Published var entries: [UsageEntry] = []
     @Published var lastUpdated: Date?
     @Published var isRefreshing = false
@@ -10,7 +10,7 @@ final class UsageStore: ObservableObject {
     private var timerCancellable: AnyCancellable?
     private let refreshInterval: TimeInterval = 5 * 60
 
-    init() {
+    public init() {
         refresh()
         timerCancellable = Timer.publish(every: refreshInterval, on: .main, in: .common)
             .autoconnect()
@@ -21,7 +21,7 @@ final class UsageStore: ObservableObject {
 
     /// Recomputes rolling per-minute meters from local history only (no network),
     /// so they track live while the panel is open.
-    func refreshRateMeters() {
+    public func refreshRateMeters() {
         let targets = entries.compactMap { entry -> (id: String, provider: String, limit: Int)? in
             guard let provider = entry.rateProviderID, let limit = entry.rateLimitPerMinute else { return nil }
             return (entry.id, provider, limit)
@@ -41,7 +41,7 @@ final class UsageStore: ObservableObject {
         }
     }
 
-    func refresh() {
+    public func refresh() {
         guard !isRefreshing else { return }
         isRefreshing = true
         Task {

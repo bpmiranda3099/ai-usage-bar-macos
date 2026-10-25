@@ -12,8 +12,8 @@ mkdir -p "$INSTALL_DIR"
 launchctl bootout "gui/$(id -u)/com.bpmiranda3099.aiagentsusagebar" 2>/dev/null || true
 
 cp .build/release/AIAgentsUsageBar "$INSTALL_DIR/AIAgentsUsageBar"
-rm -rf "$INSTALL_DIR/ai-agents-usage-bar_AIAgentsUsageBar.bundle"
-cp -R .build/release/ai-agents-usage-bar_AIAgentsUsageBar.bundle "$INSTALL_DIR/ai-agents-usage-bar_AIAgentsUsageBar.bundle"
+rm -rf "$INSTALL_DIR/ai-agents-usage-bar_UsageBarCore.bundle"
+cp -R .build/release/ai-agents-usage-bar_UsageBarCore.bundle "$INSTALL_DIR/ai-agents-usage-bar_UsageBarCore.bundle"
 
 launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.bpmiranda3099.aiagentsusagebar.plist
 

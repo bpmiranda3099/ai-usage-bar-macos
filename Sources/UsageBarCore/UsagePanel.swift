@@ -7,10 +7,10 @@ import SwiftUI
 /// sample what's behind it; the material/shape/border all come from
 /// `.glassEffect()` in ContentView, matching the system's own Control
 /// Center modules rather than the older NSVisualEffectView vibrancy.
-final class UsagePanel: NSPanel {
+public final class UsagePanel: NSPanel {
     private let hostingView: NSHostingView<AnyView>
 
-    init<Content: View>(rootView: Content) {
+    public init<Content: View>(rootView: Content) {
         hostingView = NSHostingView(rootView: AnyView(rootView))
 
         super.init(
@@ -46,7 +46,7 @@ final class UsagePanel: NSPanel {
     /// show, not just once at init, or the window bounds stay stale/too
     /// small and clip content while showing a stray rectangular edge past
     /// the rounded glass shape.
-    func syncSizeToContent() {
+    public func syncSizeToContent() {
         // NSHostingView.fittingSize can report a stale/undersized value if
         // queried while the view's own frame is still small (e.g. the
         // panel's original 280x200 contentRect) — SwiftUI's layout pass
@@ -71,7 +71,7 @@ final class UsagePanel: NSPanel {
 
     /// Follows the SwiftUI content's size as it changes (including mid-animation),
     /// keeping the top edge pinned under the menu bar.
-    func applyContentSize(_ size: NSSize) {
+    public func applyContentSize(_ size: NSSize) {
         guard size.width > 0, size.height > 0,
               abs(size.width - frame.width) > 0.5 || abs(size.height - frame.height) > 0.5 else { return }
         let topLeft = NSPoint(x: frame.minX, y: frame.maxY)
@@ -80,5 +80,5 @@ final class UsagePanel: NSPanel {
         setFrameTopLeftPoint(topLeft)
     }
 
-    override var canBecomeKey: Bool { true }
+    public override var canBecomeKey: Bool { true }
 }
